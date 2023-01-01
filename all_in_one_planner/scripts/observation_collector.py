@@ -11,6 +11,7 @@ import nav_msgs
 import numpy as np
 import rospkg
 import rospy
+import roslaunch
 import rosservice
 import std_srvs.srv
 import visualization_msgs.msg
@@ -100,16 +101,18 @@ class ObservationCollectorAllInOne:
 
         # subscriptions
         self._scan_sub = rospy.Subscriber(
-            "/scan", LaserScan, self.callback_scan, tcp_nodelay=True
+            "scan", LaserScan, self.callback_scan, tcp_nodelay=True
         )
         if self._use_dynamic_scan:
             self._scan_static_sub = rospy.Subscriber(
-                "/static_scan", LaserScan, self.callback_scan_static, tcp_nodelay=True
+                "static_scan", LaserScan, self.callback_scan_static, tcp_nodelay=True
             )
         self._robot_state_sub = rospy.Subscriber(
-            "/odom", Odometry, self.callback_robot_state, tcp_nodelay=True
+            "odom", Odometry, self.callback_robot_state, tcp_nodelay=True
         )
-        self._goal_sub = rospy.Subscriber("/goal", PoseStamped, self.callback_goal)
+        self._goal_sub = rospy.Subscriber(
+            "move_base_simple/goal", PoseStamped, self.callback_goal
+        )
 
         # self._globalplan_sub = rospy.Subscriber('/move_base/TebLocalPlannerROS/global_plan', nav_msgs.msg.Path,
         #                                         self.callback_global_plan,
@@ -341,12 +344,12 @@ class ObservationCollectorAllInOne:
             while not abs(laser_stamp - robot_stamp) <= self._sync_slop:
                 if laser_stamp > robot_stamp:
                     if len(self._rs_deque) == 0:
-                        return laser_scan, robot_pose, twist
+                        return laser_scan, static_scan, robot_pose, twist
                     robot_pose_msg = self._rs_deque.popleft()
                     robot_stamp = robot_pose_msg.header.stamp.to_sec()
                 else:
                     if len(self._laser_deque) == 0:
-                        return laser_scan, robot_pose, twist
+                        return laser_scan, static_scan, robot_pose, twist
                     laser_scan_msg = self._laser_deque.popleft()
                     laser_stamp = laser_scan_msg.header.stamp.to_sec()
 
@@ -471,17 +474,50 @@ class ObservationCollectorAllInOne:
         arg3 = "config_path:=" + config_path
 
         # Use subprocess to execute .launch file
-        self._global_planner_process = subprocess.Popen(
-            ["roslaunch", package, launch_file, arg1, arg2, arg3, arg4]
-        )
+        # self._global_planner_process = subprocess.Popen(
+        #     ["roslaunch", package, launch_file, arg1, arg2, arg3, arg4]
+        # )
 
+        roslaunch_file = roslaunch.rlutil.resolve_launch_arguments(
+            [package, launch_file]
+        )
+        args = [arg1, arg2, arg3, arg4]
+
+        self._global_planner_process = roslaunch.parent.ROSLaunchParent(
+            roslaunch.rlutil.get_or_generate_uuid(None, False),
+            [(*roslaunch_file, args)],
+        )
+        self._global_planner_process.start()
+        ns = rospy.get_namespace()
+
+        base_frame = rospy.get_param("robot_base_frame")
+        sensor_frame = rospy.get_param("robot_sensor_frame")
+
+        rospy.set_param(
+            os.path.join(ns, "global_planner", "global_costmap", "robot_base_frame"),
+            ns.replace("/", "") + "/" + base_frame,
+        )
+        rospy.set_param(
+            os.path.join(
+                ns,
+                "global_planner",
+                "global_costmap",
+                "obstacle_layer",
+                "scan",
+                "sensor_frame",
+            ),
+            ns.replace("/", "") + "/" + sensor_frame,
+        )
         self._global_plan_service = None
         self._reset_global_costmap_service = None
 
     def _wait_for_global_plan_service(self) -> bool:
         # wait until service is available
-        make_plan_service_name = "/global_planner" + "/" + "makeGlobalPlan"
-        reset_costmap_service_name = "/global_planner" + "/" + "resetGlobalCostmap"
+        ns = rospy.get_namespace()
+        make_plan_service_name = os.path.join(ns, "global_planner", "makeGlobalPlan")
+        reset_costmap_service_name = os.path.join(
+            ns, "global_planner", "resetGlobalCostmap"
+        )
         service_list = rosservice.get_service_list()
         max_tries = 10
         for i in range(max_tries):
@@ -665,7 +701,7 @@ class ObservationCollectorAllInOne:
     def _get_goal_pose_in_robot_frame(goal_pos: Pose2D, robot_pos: Pose2D):
         y_relative = goal_pos.y - robot_pos.y
         x_relative = goal_pos.x - robot_pos.x
-        rho = (x_relative ** 2 + y_relative ** 2) ** 0.5
+        rho = (x_relative**2 + y_relative**2) ** 0.5
         theta = (np.arctan2(y_relative, x_relative) - robot_pos.theta + 4 * np.pi) % (
             2 * np.pi
         ) - np.pi

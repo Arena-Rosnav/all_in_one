@@ -4,7 +4,7 @@
  *
  * @copyright 2017 Joseph Duchesne
  * @author Joseph Duchesne
- * 
+ *
  */
 
 #include "light_scan_sim/light_scan_sim.h"
@@ -15,7 +15,8 @@
  *
  * @param node The ros node handle
  */
-LightScanSim::LightScanSim(ros::NodeHandle node) {
+LightScanSim::LightScanSim(ros::NodeHandle node)
+{
 
   // Load settings
   ray_cast_ = std::make_shared<RayCast>(node.param<double>("range/min", 1.0),
@@ -32,6 +33,16 @@ LightScanSim::LightScanSim(ros::NodeHandle node) {
   node.getParam("map/image_frame", image_frame_);
   node.getParam("laser/frame", laser_frame_);
 
+  // Change frames for multi agent simulation
+  std::string ns_ = ros::this_node::getNamespace();
+  if (ns_ != "/")
+  {
+    laser_frame_ = ns_.substr(1, ns_.length()) + "/" + laser_frame_;
+    laser_topic_ = ns_ + "/" + laser_topic_;
+    ROS_INFO("Setting laser frame to %s", laser_frame_.c_str());
+    ROS_INFO("Setting laser topic to %s", laser_topic_.c_str());
+  }
+
   // Subscribe / Publish
   map_sub_ = node.subscribe(map_topic_, 1, &LightScanSim::MapCallback, this);
   materials_sub_ = node.subscribe(materials_topic_, 1, &LightScanSim::MaterialsCallback, this);
@@ -43,22 +54,22 @@ LightScanSim::LightScanSim(ros::NodeHandle node) {
  * @brief Recieve the subscribed map and process its data
  *
  * @param grid The map occupancy grid
- */ 
-void LightScanSim::MapCallback(const nav_msgs::OccupancyGrid::Ptr& grid)
+ */
+void LightScanSim::MapCallback(const nav_msgs::OccupancyGrid::Ptr &grid)
 {
-  map_ = *grid;  // Copy the entire message
-  
+  map_ = *grid; // Copy the entire message
+
   // Convert OccupancyGrid to cv::Mat, uint8_t
   cv::Mat map_mat = cv::Mat(map_.info.height, map_.info.width,
                             CV_8UC1, map_.data.data());
   // Set unknown space (255) to free space (0)
   // 4 = threshold to zero, inverted
   // See: http://docs.opencv.org/3.1.0/db/d8e/tutorial_threshold.html
-  cv::threshold(map_mat, map_mat, 254, 255, 4); 
+  cv::threshold(map_mat, map_mat, 254, 255, 4);
 
   // Update map
   ray_cast_->SetMap(map_mat, map_.info.resolution, map_.info.origin.position.x, map_.info.origin.position.y);
-  
+
   // Create transform from map tf to image tf
   map_to_image_.setOrigin(tf::Vector3(map_.info.origin.position.x,
                                       map_.info.origin.position.y,
@@ -67,7 +78,8 @@ void LightScanSim::MapCallback(const nav_msgs::OccupancyGrid::Ptr& grid)
   map_to_image_.setRotation(tf::createQuaternionFromRPY(0, 0, 0));
 
   map_loaded_ = true;
-  if (map_loaded_ && segments_loaded_ && materials_loaded_) {
+  if (map_loaded_ && segments_loaded_ && materials_loaded_)
+  {
     ray_cast_->SetSegments(segments_, materials_);
   }
 }
@@ -77,11 +89,13 @@ void LightScanSim::MapCallback(const nav_msgs::OccupancyGrid::Ptr& grid)
  *
  * @param materials The material list
  */
-void LightScanSim::MaterialsCallback(const light_scan_sim::MaterialList::Ptr& materials) {
+void LightScanSim::MaterialsCallback(const light_scan_sim::MaterialList::Ptr &materials)
+{
   materials_ = *materials;
   materials_loaded_ = true;
 
-  if (map_loaded_ && segments_loaded_ && materials_loaded_) {
+  if (map_loaded_ && segments_loaded_ && materials_loaded_)
+  {
     ray_cast_->SetSegments(segments_, materials_);
   }
 }
@@ -91,13 +105,15 @@ void LightScanSim::MaterialsCallback(const light_scan_sim::MaterialList::Ptr& ma
  *
  * @param segments The segment list
  */
-void LightScanSim::SegmentsCallback(const light_scan_sim::SegmentList::Ptr& segments) {
+void LightScanSim::SegmentsCallback(const light_scan_sim::SegmentList::Ptr &segments)
+{
   segments_ = *segments;
   segments_loaded_ = true;
 
   // Todo: Somehow use TF to transform segments into image space
 
-  if (map_loaded_ && segments_loaded_ && materials_loaded_) {
+  if (map_loaded_ && segments_loaded_ && materials_loaded_)
+  {
     ray_cast_->SetSegments(segments_, materials_);
   }
 }
@@ -105,30 +121,36 @@ void LightScanSim::SegmentsCallback(const light_scan_sim::SegmentList::Ptr& segm
 /**
  * @brief Generate and publish the simulated laser scan
  */
-void LightScanSim::Update() {
-  if (!map_loaded_) {
+void LightScanSim::Update()
+{
+  if (!map_loaded_)
+  {
     ROS_WARN("LightScanSim: Update called, no map yet");
     return;
   }
 
   // Broadcast the tf representing the map image
-  tf_broadcaster_.sendTransform(
-    tf::StampedTransform(map_to_image_, ros::Time::now(),
-                         map_.header.frame_id, image_frame_));
+  // Note: The tf broadcast is now taken care of by separate static_transform_publisher
+  // tf_broadcaster_.sendTransform(
+  //     tf::StampedTransform(map_to_image_, ros::Time::now(),
+  //                          map_.header.frame_id, image_frame_));
 
   // Use that transform to generate a point in image space
   tf::StampedTransform image_to_laser;
-  try{
+  try
+  {
     tf_listener_.lookupTransform(image_frame_, laser_frame_,
                                  ros::Time(0), image_to_laser);
-  } catch (tf::TransformException &ex) {
-    ROS_WARN("LightScanSim: %s",ex.what());
+  }
+  catch (tf::TransformException &ex)
+  {
+    ROS_WARN("LightScanSim: %s", ex.what());
     return;
   }
 
   // Convert that point from m to px
-  cv::Point laser_point(image_to_laser.getOrigin().x()/map_.info.resolution,
-                        image_to_laser.getOrigin().y()/map_.info.resolution);
+  cv::Point laser_point(image_to_laser.getOrigin().x() / map_.info.resolution,
+                        image_to_laser.getOrigin().y() / map_.info.resolution);
   // And get the yaw
   double roll, pitch, yaw;
   image_to_laser.getBasis().getRPY(roll, pitch, yaw);
@@ -137,8 +159,8 @@ void LightScanSim::Update() {
   sensor_msgs::LaserScan scan = ray_cast_->Scan(laser_point, yaw);
 
   // Set the header values
-  scan.header.stamp = image_to_laser.stamp_;  // Use correct time
-  scan.header.frame_id = laser_frame_;  // set laser's tf
+  scan.header.stamp = image_to_laser.stamp_; // Use correct time
+  scan.header.frame_id = laser_frame_;       // set laser's tf
 
   // And publish the laser scan
   laser_pub_.publish(scan);

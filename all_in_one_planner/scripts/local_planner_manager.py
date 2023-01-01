@@ -94,7 +94,7 @@ class LocalPlannerManager:
         base_dir_agent = ""
         if "model" in paths:
             base_dir_agent = paths["model"]
-            print(f"TEST:{base_dir_agent}")
+            # print(f"TEST:{base_dir_agent}")
 
         if "model_based" in config_model:
             model_based_names = config_model["model_based_names"]
@@ -105,8 +105,9 @@ class LocalPlannerManager:
                 model_based_config_path_full = os.path.join(
                     base_dir_agent, model_based_config_path
                 )
-                print(f"!!!!!!!!!!!!!!{model_based_config_path_full}")
+                # print(f"!!!!!!!!!!!!!!{model_based_config_path_full}")
                 if not os.path.exists(model_based_config_path_full):
+                    print("Config file does not exist! ")
                     # case 2: Load config file from config folder
                     # TODO: Change this to make sense !!!!!!!!!!!!!!
                     model_based_config_path_full = os.path.join(
@@ -116,6 +117,7 @@ class LocalPlannerManager:
                         "base_local_planner_parameters",
                         model_based_config_path,
                     )
+                print("Hello")
                 models.append(
                     BaseLocalPlannerAgent(
                         model_based_names[i], model_based_config_path_full

@@ -57,16 +57,17 @@ class AioNode:
         rospy.loginfo("Loading all in one policy from file...")
 
         self.load_aio_policy(paths["model"])
-
+        print("Loading all in one policy...")
         self.local_planner_manager = LocalPlannerManager(paths)
-
+        print("LOCAL PLANNER MANAGER LOADED")
         required_obs = self.local_planner_manager.get_required_observations()
         self.observation_collector = ObservationCollectorAllInOne(
             required_obs, paths["all_in_one_parameters"]
         )
+        print("OBSERVATION COLLECTOR LOADED")
         self._extract_step_parameters(paths["all_in_one_parameters"])
 
-        self.pub_twist = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        self.pub_twist = rospy.Publisher("cmd_vel", Twist, queue_size=1)
 
         self.visualizer = AllInOneVisualizer(
             self.local_planner_manager.get_model_names()
@@ -138,7 +139,7 @@ class AioNode:
             make_new_global_plan
         )
 
-        goal_reached = rospy.get_param("/bool_goal_reached", default=False)
+        goal_reached = rospy.get_param("bool_goal_reached", default=False)
         if not goal_reached:
             if self._aio_switch_counter % self._all_in_one_planner_frequency == 0:
                 self.aio_action = self._get_aio_action(merged_obs)
