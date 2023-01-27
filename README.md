@@ -12,7 +12,7 @@ Currently we offer a control policy for 4 different robot models:
 - Youbot  
 
 # Installation
-1. Add this package to your .rosinstall or clone it manually.
+## Add this package to your .rosinstall or clone it manually.
 ```bash
 cd ~/catkin_ws/src/arena-bench # Navigate to your arena-bench location
 echo "- git:
@@ -21,10 +21,16 @@ echo "- git:
     version: master" >> .rosinstall
 rosws update ../planners/all_in_one # or rosws update
 ```
-2. Run catkin make
+## Activate poetry shell
 ```bash
-cd ~/catkin_ws # Navigate to your catkin workspace
+cd ~/catkin_ws/src/arena-bench # Navigate to your arena-bench location
+poetry shell
+```
+## Make sure to source the workspace environment
+```bash
+cd ../.. # navigate to the catkin_ws directory
 catkin_make
+source devel/setup.zsh # if you use bash: source devel/setup.bash 
 ```
 This code is intended for usage with Arena-Rosnav infrastructure.
 For more information regarding AIO please refer to the [original repository](https://github.com/ignc-research/all-in-one-DRL-planner).
