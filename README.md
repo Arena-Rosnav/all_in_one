@@ -11,6 +11,21 @@ Currently we offer a control policy for 4 different robot models:
 - Robotino
 - Youbot  
 
+# Installation
+1. Add this package to your .rosinstall or clone it manually.
+```bash
+cd ~/catkin_ws/src/arena-bench
+echo "- git:
+    local-name: ../planners/all_in_one
+    uri: https://github.com/Arena-Rosnav/all_in_one
+    version: master" >> .rosinstall
+rosws update ../planners/all_in_one # or rosws update
+```
+2. Run catkin make
+```bash
+cd ~/catkin_ws
+catkin_make
+```
 This code is intended for usage with Arena-Rosnav infrastructure.
 For more information regarding AIO please refer to the [original repository](https://github.com/ignc-research/all-in-one-DRL-planner).
 
